@@ -349,8 +349,8 @@ private class ScannerAnalyzer implements ImageAnalysis.Analyzer {
             byte[] bytes = new byte[mediaImage.getPlanes()[0].getBuffer().remaining()];
             mediaImage.getPlanes()[0].getBuffer().get(bytes);
             imageBuffer.put(bytes);
-            InputImage inputImage = InputImage.fromByteBuffer(imageBuffer, mediaImage.getWidth(), mediaImage.getHeight(), InputImage.IMAGE_FORMAT_NV21, mediaImage.getImageInfo().getRotationDegrees());
-
+            InputImage inputImage = InputImage.fromByteBuffer(ByteBuffer.wrap(imageBuffer), mediaImage.getWidth(), mediaImage.getHeight(), 0, InputImage.IMAGE_FORMAT_NV21);
+            
             // Process image for barcode detection
             scanner.process(inputImage)
                     .addOnSuccessListener(barcodes -> {
