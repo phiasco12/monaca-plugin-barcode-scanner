@@ -1,6 +1,3 @@
-/**
- * Copyright (c) 2022 Asial Corporation. All rights reserved.
- */
 package io.monaca.plugin.barcodescanner;
 
 import androidx.annotation.NonNull;
@@ -38,15 +35,12 @@ import com.google.mlkit.vision.barcode.BarcodeScanner;
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
 import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
-import com.google.mlkit.vision.common.InputImage;
-
+import com.google.mlkit.vision.common.InputImage; // Added import
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
-/**
- * Barcode scanner activity class
- */
 public class BarcodeScannerActivity extends AppCompatActivity {
 
     private static final String TAG = "BarcodeScannerActivity";
@@ -81,20 +75,15 @@ public class BarcodeScannerActivity extends AppCompatActivity {
     private Handler timeoutPromptHandler;
     private Runnable timeoutPromptRunnable;
 
-    /**
-     * ${inheritDoc}
-     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Resources res = getResources();
-        String packageName = getPackageName();
-        int layoutId = getResourceId(res, "activity_barcode_scanner", "layout", packageName);
-        int previewViewId = getResourceId(res, "preview_view", "id", packageName);
-        int detectedTextButtonId = getResourceId(res, "detected_text", "id", packageName);
-        int detectionAreaId = getResourceId(res, "detection_area", "id", packageName);
-        int timeoutPromptId = getResourceId(res, "timeout_prompt", "id", packageName);
-        int debugPreviewId = getResourceId(res, "debug_preview", "id", packageName);
+        setContentView(R.layout.activity_barcode_scanner);
+        previewView = findViewById(R.id.preview_view);
+        detectedTextButton = findViewById(R.id.detected_text);
+        detectionArea = findViewById(R.id.detection_area);
+        timeoutPromptView = findViewById(R.id.timeout_prompt);
+        debugPreviewView = findViewById(R.id.debug_preview);
 
         Intent intent = getIntent();
         oneShot = intent.getBooleanExtra("oneShot", false);
@@ -106,127 +95,62 @@ public class BarcodeScannerActivity extends AppCompatActivity {
         }
         debugPreviewMode = intent.getIntExtra("debug.preview", 0);
 
-        // create UI from resource
-        setContentView(LayoutInflater.from(this).inflate(layoutId, null));
-        previewView = findViewById(previewViewId);
-        // detected text
-        detectedTextButton = findViewById(detectedTextButtonId);
-        detectedTextButton.getBackground().setTint(DETECTED_TEXT_BACKGROUND_COLOR);
-        detectedTextButton.setTextColor(DETECTED_TEXT_COLOR);
-        detectedTextButton.setVisibility(View.INVISIBLE);
-        detectionArea = findViewById(detectionAreaId);
-        GradientDrawable drawable = (GradientDrawable) detectionArea.getDrawable();
-        drawable.setStroke(DETECTION_AREA_BORDER, DETECTION_AREA_COLOR);
-        // timeout prompt
-        timeoutPromptView = findViewById(timeoutPromptId);
-        GradientDrawable shape = new GradientDrawable();
-        shape.setCornerRadius(TIMEOUT_PROMPT_BACKGROUND_CORNER_RADIUS);
-        shape.setTint(TIMEOUT_PROMPT_BACKGROUND_COLOR);
-        timeoutPromptView.setBackground(shape);
-        timeoutPromptView.setText(timeoutPrompt);
-        timeoutPromptView.setVisibility(View.INVISIBLE);
-        // for debug mode
-        debugPreviewView = findViewById(debugPreviewId);
-        debugPreviewView.setVisibility( debugPreviewMode == 0 ? View.INVISIBLE : View.VISIBLE);
-
-        detectedTextButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // 検出した文字列が選択されたので親画面へ値を渡して遷移する
-                if (detectedBarcode == null) {
-                    return;
-                }
+        detectedTextButton.setOnClickListener(v -> {
+            if (detectedBarcode != null) {
                 setResult(Activity.RESULT_OK, getResultIntent());
                 finish();
             }
         });
+
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
             Log.d(TAG, "Failed to checkSelfPermission");
             return;
         }
         initCamera();
     }
 
-    /**
-     * 検出したバーコード情報からIntentを作成する
-     * @return intent: バーコード文字列・フォーマットを格納したIntent
-     */
     private Intent getResultIntent() {
         Intent intent = new Intent();
-        try {
+        if (detectedBarcode != null) {
             intent.putExtra(INTENT_DETECTED_TEXT, detectedBarcode.getDisplayValue());
             intent.putExtra(INTENT_DETECTED_FORMAT, getBarcodeFormatString(detectedBarcode.getFormat()));
-        } catch (NullPointerException e) {
         }
-
         return intent;
     }
 
-    /**
-     * 定数 Barcode.FORMAT_XXXX からプラグインのフォーマット形式に変換
-     * @param format Barcode.FORMAT_XXXX
-     * @return formatStr: プラグインで定義するフォーマット文字列
-     */
     private static String getBarcodeFormatString(int format) {
-        String formatStr = "";
         switch (format) {
             case Barcode.FORMAT_QR_CODE:
-                formatStr = "QR_CODE";
-                break;
+                return "QR_CODE";
             case Barcode.FORMAT_EAN_8:
-                formatStr = "EAN_8";
-                break;
+                return "EAN_8";
             case Barcode.FORMAT_EAN_13:
-                formatStr = "EAN_13";
-                break;
+                return "EAN_13";
             case Barcode.FORMAT_ITF:
-                formatStr = "ITF";
-                break;
+                return "ITF";
             case Barcode.FORMAT_CODE_128:
-                formatStr = "CODE_128";
-                break;
+                return "CODE_128";
             case Barcode.FORMAT_CODE_39:
-                formatStr = "CODE_39";
-                break;
+                return "CODE_39";
             case Barcode.FORMAT_CODE_93:
-                formatStr = "CODE_93";
-                break;
+                return "CODE_93";
             case Barcode.FORMAT_CODABAR:
-                formatStr = "CODABAR";
-                break;
+                return "CODABAR";
             case Barcode.FORMAT_UPC_A:
-                formatStr = "UPC_A";
-                break;
+                return "UPC_A";
             case Barcode.FORMAT_UPC_E:
-                formatStr = "UPC_E";
-                break;
+                return "UPC_E";
             case Barcode.FORMAT_PDF417:
-                formatStr = "PDF417";
-                break;
+                return "PDF417";
             case Barcode.FORMAT_AZTEC:
-                formatStr = "AZTEC";
-                break;
+                return "AZTEC";
             case Barcode.FORMAT_DATA_MATRIX:
-                formatStr = "DATA_MATRIX";
-                break;
+                return "DATA_MATRIX";
             default:
-                formatStr = "UNKNOWN";
-                break;
+                return "UNKNOWN";
         }
-
-        return formatStr;
     }
 
-    /**
-     * Initialize and prepare camera
-     */
     @RequiresPermission(Manifest.permission.CAMERA)
     private void initCamera() {
         cameraProviderFuture = ProcessCameraProvider.getInstance(this);
@@ -248,22 +172,13 @@ public class BarcodeScannerActivity extends AppCompatActivity {
         startDetectionTimer();
     }
 
-    /**
-     * Bind preview, analyzer, cameraProvider to camera lifecycle.
-     *
-     * @param cameraProvider
-     * @param executor
-     */
     private void bindToLifecycle(ProcessCameraProvider cameraProvider, Executor executor) {
-
-        // prepare preview
         Preview preview = new Preview.Builder().build();
         CameraSelector cameraSelector = new CameraSelector.Builder()
                 .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                 .build();
         preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
-        // prepare analyzer
         ScannerAnalyzer analyzer = new ScannerAnalyzer();
 
         ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
@@ -271,15 +186,9 @@ public class BarcodeScannerActivity extends AppCompatActivity {
                 .build();
         imageAnalysis.setAnalyzer(executor, analyzer);
 
-        // bind preview and analyzer to lifecycle
         cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview);
     }
 
-    /**
-     * Callback function to retrieve detected barcodes
-     *
-     * @param barcodes
-     */
     private void onDetectionTaskSuccess(List<Barcode> barcodes) {
         int detected = 0;
         for (Barcode barcode : barcodes) {
@@ -289,9 +198,8 @@ public class BarcodeScannerActivity extends AppCompatActivity {
                 detectedBarcode = null;
                 continue;
             }
-            detected ++;
+            detected++;
 
-            // UI
             if (!oneShot) {
                 GradientDrawable drawable = (GradientDrawable) detectionArea.getDrawable();
                 drawable.setStroke(DETECTION_AREA_BORDER, DETECTION_AREA_DETECTED_COLOR);
@@ -302,10 +210,8 @@ public class BarcodeScannerActivity extends AppCompatActivity {
             }
         }
         if (detected == 0) {
-            // no item is detected.
             detectedBarcode = null;
 
-            // UI
             detectedTextButton.setText("");
             detectedTextButton.setVisibility(View.INVISIBLE);
             GradientDrawable drawable = (GradientDrawable) detectionArea.getDrawable();
@@ -315,14 +221,10 @@ public class BarcodeScannerActivity extends AppCompatActivity {
                 setResult(Activity.RESULT_OK, getResultIntent());
                 finish();
             }
-            // 検出タイムアウトタイマーを再起動
             restartDetectionTimer();
         }
     }
 
-    /**
-     * Analyzer class for scanning barcodes.
-     */
     private class ScannerAnalyzer implements ImageAnalysis.Analyzer {
         private BarcodeScanner scanner;
 
@@ -333,55 +235,28 @@ public class BarcodeScannerActivity extends AppCompatActivity {
             scanner = BarcodeScanning.getClient(options);
         }
 
-        /**
-         * ${inheritDoc}
-         */
         @Override
         public void analyze(@NonNull ImageProxy imageProxy) {
-            // カメラからキャプチャされた画像を毎フレーム取得してバーコード検出ライブラリへ渡す
-            @SuppressLint("UnsafeOptInUsageError") Image mediaImage = imageProxy.getImage();
-            int imageWidth, imageHeight;
-            int trimWidth, trimHeight;
-            int rotationDegrees = imageProxy.getImageInfo().getRotationDegrees();
-
-            // 検出範囲の座標を計算
-            int screenWidth = BarcodeScannerActivity.this.previewView.getWidth();
-            int screenHeight = BarcodeScannerActivity.this.previewView.getHeight();
-            int areaWidth = BarcodeScannerActivity.this.detectionArea.getWidth();
-            int areaHeight = BarcodeScannerActivity.this.detectionArea.getHeight();
-            if (rotationDegrees % 180 == 0) {
-                // landscape
-                imageWidth = mediaImage.getWidth();
-                trimWidth = imageWidth * areaWidth / screenWidth;
-                trimHeight = trimWidth * areaHeight / areaWidth;
-            } else {
-                // portrait
-                imageHeight = mediaImage.getWidth();
-                trimHeight = imageHeight * areaHeight / screenHeight;
-                trimWidth = trimHeight * areaWidth / areaHeight;
-            }
+            Image mediaImage = imageProxy.getImage();
 
             if (mediaImage != null) {
-                // カメラ画像をトリミングして検出範囲を限定する
-                Bitmap bitmapOrg = BitmapUtils.getBitmap(imageProxy);
-                Bitmap bitmapTrimmed = ImageUtils.trim(bitmapOrg, trimWidth, trimHeight);
-                if (debugPreviewMode == 1) {
-                    debugPreviewView.setImageBitmap(bitmapTrimmed);
-                } else if (debugPreviewMode == 2) {
-                    debugPreviewView.setImageBitmap(bitmapOrg);
-                }
-                InputImage inputImage = InputImage.fromBitmap(bitmapTrimmed, 0);
-                // バーコード検出実行
+                ByteBuffer imageBuffer = ByteBuffer.allocate(mediaImage.getHeight() * mediaImage.getWidth() * 4);
+                mediaImage.getPlanes()[0].getBuffer().rewind();
+                byte[] bytes = new byte[mediaImage.getPlanes()[0].getBuffer().remaining()];
+                mediaImage.getPlanes()[0].getBuffer().get(bytes);
+                imageBuffer.put(bytes);
+                InputImage inputImage = InputImage.fromByteBuffer(imageBuffer, mediaImage.getWidth(), mediaImage.getHeight(), InputImage.IMAGE_FORMAT_NV21, mediaImage.getImageInfo().getRotationDegrees());
+
                 scanner.process(inputImage)
                         .addOnSuccessListener(barcodes -> {
-                            // 検出された
-                            BarcodeScannerActivity.this.onDetectionTaskSuccess(barcodes);
+                            onDetectionTaskSuccess(barcodes);
                         })
                         .addOnFailureListener(e -> {
-
-                        }).addOnCompleteListener(task -> imageProxy.close());
-            } else {
-                imageProxy.close();
+                            Log.e(TAG, "Barcode detection failed: " + e.getMessage());
+                        })
+                        .addOnCompleteListener(task -> {
+                            imageProxy.close();
+                        });
             }
         }
     }
@@ -408,18 +283,5 @@ public class BarcodeScannerActivity extends AppCompatActivity {
         }
         timeoutPromptView.setVisibility(View.INVISIBLE);
         startDetectionTimer();
-    }
-
-    /**
-     * Get resource id
-     *
-     * @param res        resource object
-     * @param name       resource name
-     * @param defType    resource type
-     * @param defPackage package name
-     * @return resource id
-     */
-    private static int getResourceId(Resources res, String name, String defType, String defPackage) {
-        return res.getIdentifier(name, defType, defPackage);
     }
 }
