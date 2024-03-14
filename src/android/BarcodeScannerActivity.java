@@ -27,6 +27,20 @@ import android.media.Image;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
+
+import com.google.mlkit.vision.barcode.Barcode;
+import com.google.mlkit.vision.barcode.BarcodeScanner;
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
+import com.google.mlkit.vision.barcode.BarcodeScanning;
+import com.google.mlkit.vision.common.InputImage;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -323,68 +337,62 @@ public class BarcodeScannerActivity extends AppCompatActivity {
     /**
      * Analyzer class for scanning barcodes.
      */
-    private class ScannerAnalyzer implements ImageAnalysis.Analyzer {
-        private BarcodeScanner scanner;
+private class ScannerAnalyzer implements ImageAnalysis.Analyzer {
+    private BarcodeScanner scanner;
 
-        ScannerAnalyzer() {
-            BarcodeScannerOptions options = new BarcodeScannerOptions.Builder()
-                    .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
-                    .build();
-            scanner = BarcodeScanning.getClient(options);
-        }
+    ScannerAnalyzer() {
+        BarcodeScannerOptions options = new BarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
+                .build();
+        scanner = BarcodeScanning.getClient(options);
+    }
 
-        /**
-         * ${inheritDoc}
-         */
-        @Override
-        public void analyze(@NonNull ImageProxy imageProxy) {
-            // カメラからキャプチャされた画像を毎フレーム取得してバーコード検出ライブラリへ渡す
-            @SuppressLint("UnsafeOptInUsageError") Image mediaImage = imageProxy.getImage();
-            int imageWidth, imageHeight;
-            int trimWidth, trimHeight;
-            int rotationDegrees = imageProxy.getImageInfo().getRotationDegrees();
+    /**
+     * Analyzes the captured image for barcode detection.
+     *
+     * @param imageProxy The image proxy containing the captured image.
+     */
+    @Override
+    public void analyze(@NonNull ImageProxy imageProxy) {
+        Image mediaImage = imageProxy.getImage();
 
-            // 検出範囲の座標を計算
-            int screenWidth = BarcodeScannerActivity.this.previewView.getWidth();
-            int screenHeight = BarcodeScannerActivity.this.previewView.getHeight();
-            int areaWidth = BarcodeScannerActivity.this.detectionArea.getWidth();
-            int areaHeight = BarcodeScannerActivity.this.detectionArea.getHeight();
-            if (rotationDegrees % 180 == 0) {
-                // landscape
-                imageWidth = mediaImage.getWidth();
-                trimWidth = imageWidth * areaWidth / screenWidth;
-                trimHeight = trimWidth * areaHeight / areaWidth;
-            } else {
-                // portrait
-                imageHeight = mediaImage.getWidth();
-                trimHeight = imageHeight * areaHeight / screenHeight;
-                trimWidth = trimHeight * areaWidth / areaHeight;
-            }
+        if (mediaImage != null) {
+            ByteBuffer imageBuffer = ByteBuffer.allocate(mediaImage.getHeight() * mediaImage.getWidth() * 4);
+            mediaImage.getPlanes()[0].getBuffer().rewind();
+            byte[] bytes = new byte[mediaImage.getPlanes()[0].getBuffer().remaining()];
+            mediaImage.getPlanes()[0].getBuffer().get(bytes);
+            imageBuffer.put(bytes);
+            InputImage inputImage = InputImage.fromByteBuffer(imageBuffer, mediaImage.getWidth(), mediaImage.getHeight(), InputImage.IMAGE_FORMAT_NV21, mediaImage.getImageInfo().getRotationDegrees());
 
-            if (mediaImage != null) {
-                // カメラ画像をトリミングして検出範囲を限定する
-                Bitmap bitmapOrg = BitmapUtils.getBitmap(imageProxy);
-                Bitmap bitmapTrimmed = ImageUtils.trim(bitmapOrg, trimWidth, trimHeight);
-                if (debugPreviewMode == 1) {
-                    debugPreviewView.setImageBitmap(bitmapTrimmed);
-                } else if (debugPreviewMode == 2) {
-                    debugPreviewView.setImageBitmap(bitmapOrg);
-                }
-                InputImage inputImage = InputImage.fromBitmap(bitmapTrimmed, 0);
-                // バーコード検出実行
-                scanner.process(inputImage)
-                        .addOnSuccessListener(barcodes -> {
-                            // 検出された
-                            BarcodeScannerActivity.this.onDetectionTaskSuccess(barcodes);
-                        })
-                        .addOnFailureListener(e -> {
-
-                        }).addOnCompleteListener(task -> imageProxy.close());
-            } else {
-                imageProxy.close();
-            }
+            // Process image for barcode detection
+            scanner.process(inputImage)
+                    .addOnSuccessListener(barcodes -> {
+                        onBarcodeDetected(barcodes);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Barcode detection failed: " + e.getMessage());
+                    })
+                    .addOnCompleteListener(task -> {
+                        imageProxy.close();
+                    });
         }
     }
+
+    /**
+     * Handles the successful detection of barcodes in the captured image.
+     *
+     * @param barcodes List of detected barcodes.
+     */
+    private void onBarcodeDetected(List<Barcode> barcodes) {
+        // Perform actions based on detected barcodes
+        for (Barcode barcode : barcodes) {
+            Log.d(TAG, "Detected barcode: " + barcode.getRawValue());
+            // Handle each detected barcode as needed
+            // For example, you can extract the barcode information and take appropriate actions
+        }
+    }
+}
+
 
     private boolean isEnableTimeoutPrompt() {
         return showTimeoutPrompt && timeoutPromptSpan >= 0;
